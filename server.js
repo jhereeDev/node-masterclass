@@ -7,10 +7,10 @@ const fileupload = require('express-fileupload');
 const errorHandler = require('./middleware/error');
 const mongoSanitize = require('express-mongo-sanitize');
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
+const { rateLimit } = require('express-rate-limit');
 const hpp = require('hpp');
 const cors = require('cors');
-const xss = require('xss-clean');
+const xss = require('xss');
 const connectDB = require('./config/db');
 const cookieParser = require('cookie-parser');
 
@@ -43,19 +43,33 @@ if (process.env.NODE_ENV === 'development') {
 // File uploading
 app.use(fileupload());
 
-// Sanitiza data
+// Sanitize data
 app.use(mongoSanitize());
 
 // Set security headers
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginEmbedderPolicy: false
+}));
 
-// Prevent XSS attacks
-app.use(xss());
+// XSS Protection middleware
+app.use((req, res, next) => {
+  if (req.body) {
+    Object.keys(req.body).forEach(key => {
+      if (typeof req.body[key] === 'string') {
+        req.body[key] = xss(req.body[key]);
+      }
+    });
+  }
+  next();
+});
 
 // Rate limiting
 const limiter = rateLimit({
 	windowMs: 10 * 60 * 1000, // 10 minutes
 	max: 100,
+	standardHeaders: true,
+	legacyHeaders: false
 });
 
 app.use(limiter);
